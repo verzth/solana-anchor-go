@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -1521,7 +1522,7 @@ func genAccountGettersSetters(
 							continue OUTER
 						}
 						if seedDef.Kind == "arg" {
-							seedArgs[i] = ToCamel(seedDef.Path)
+							seedArgs[i] = toCamelInitCaseForArgs(seedDef.Path, true)
 							continue OUTER
 						}
 					}
@@ -1581,6 +1582,7 @@ func genAccountGettersSetters(
 								body.Commentf("arg: %s", seedArg)
 								seedArgName := ToLowerCamel(seedArg + "Seed")
 								body.Add(Id(seedArgName).Op(",").Id("err").Op(":=").Qual(PkgMsgpack, "Marshal").Call(Id("inst").Op(".").Id(seedArg)))
+								fmt.Println("seedArg", seedArg, "seedArgName", seedArgName)
 								body.If(
 									Err().Op("!=").Nil(),
 								).Block(
@@ -2423,4 +2425,46 @@ func treeFormatAccountName(name string) string {
 		}
 	}
 	return cleanedName
+}
+
+var numberSequence = regexp.MustCompile(`([a-zA-Z])(\d+)([a-zA-Z]?)`)
+var numberReplacement = []byte(`$1 $2 $3`)
+
+func addWordBoundariesToNumbers(s string) string {
+	b := []byte(s)
+	b = numberSequence.ReplaceAll(b, numberReplacement)
+	return string(b)
+}
+
+// Converts a string to CamelCase
+func toCamelInitCaseForArgs(s string, initCase bool) string {
+	s = addWordBoundariesToNumbers(s)
+	s = strings.Trim(s, " ")
+	n := ""
+	capNext := initCase
+	for _, v := range s {
+		if v >= 'A' && v <= 'Z' {
+			n += string(v)
+		}
+		if v >= '0' && v <= '9' {
+			n += string(v)
+		}
+		if v >= 'a' && v <= 'z' {
+			if capNext {
+				n += strings.ToUpper(string(v))
+			} else {
+				n += string(v)
+			}
+		}
+		if v == '.' {
+			n += string(v)
+		}
+		// !unicode.IsLetter(v) && !unicode.IsNumber(v)
+		if v == '_' || v == ' ' || v == '-' || v == '.' || v == '/' || v == '\\' || v == '@' {
+			capNext = true
+		} else {
+			capNext = false
+		}
+	}
+	return n
 }
